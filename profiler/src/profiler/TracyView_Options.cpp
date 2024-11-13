@@ -8,6 +8,7 @@
 #include "TracyTimelineItemGpu.hpp"
 #include "TracyUtility.hpp"
 #include "TracyView.hpp"
+#include "tracy_pdqsort.h"
 
 namespace tracy
 {
@@ -194,7 +195,7 @@ void View::DrawOptions()
                                 }
                                 while( idx < NumSlopes );
                             }
-                            std::sort( slopes, slopes+NumSlopes );
+                            pdqsort_branchless( slopes, slopes+NumSlopes );
                             drift = int( 1000000000 * -slopes[NumSlopes/2] );
                         }
                     }
@@ -225,6 +226,9 @@ void View::DrawOptions()
     ImGui::SameLine();
     bool forceColors = m_vd.forceColors;
     if( SmallCheckbox( "Ignore custom", &forceColors ) ) m_vd.forceColors = forceColors;
+    ImGui::SameLine();
+    bool inheritColors = m_vd.inheritParentColors;
+    if( SmallCheckbox( "Inherit parent colors", &inheritColors ) ) m_vd.inheritParentColors = inheritColors;
     ImGui::Indent();
     ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 0, 0 ) );
     ImGui::RadioButton( "Static", &ival, 0 );
@@ -671,7 +675,7 @@ void View::DrawOptions()
         ImGui::SameLine();
         if( ImGui::SmallButton( "Sort" ) )
         {
-            std::sort( m_threadOrder.begin(), m_threadOrder.end(), [this] ( const auto& lhs, const auto& rhs ) {
+            pdqsort_branchless( m_threadOrder.begin(), m_threadOrder.end(), [this] ( const auto& lhs, const auto& rhs ) {
                 if( lhs->groupHint != rhs->groupHint ) return lhs->groupHint < rhs->groupHint;
                 return strcmp( m_worker.GetThreadName( lhs->id ), m_worker.GetThreadName( rhs->id ) ) < 0;
             } );
