@@ -1196,7 +1196,7 @@ void SourceView::RenderSymbolView( Worker& worker, View& view )
         }
         else
         {
-            char tmp[16];
+            char tmp[32];
             sprintf( tmp, "0x%" PRIx64, m_baseAddr );
             TextFocused( ICON_FA_PUZZLE_PIECE " Symbol:", tmp );
         }
@@ -1233,12 +1233,18 @@ void SourceView::RenderSymbolView( Worker& worker, View& view )
             ImGui::AlignTextToFramePadding();
             ImGui::TextDisabled( "(+%s inlined functions)", RealToString( inlineCount ) );
         }
+    }
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    if( ImGui::SmallButton( ICON_FA_ARROW_DOWN_SHORT_WIDE " Entry stacks" ) ) view.ShowSampleParents( m_symAddr, !m_calcInlineStats );
+    if( inlineList )
+    {
         if( m_calcInlineStats )
         {
-                ImGui::SameLine();
-                ImGui::AlignTextToFramePadding();
-                TextColoredUnformatted( ImVec4( 1.f, 1.f, 0.2f, 1.f ), ICON_FA_TRIANGLE_EXCLAMATION );
-                TooltipIfHovered( "Context is limited to an inline function" );
+            ImGui::SameLine();
+            ImGui::AlignTextToFramePadding();
+            TextColoredUnformatted( ImVec4( 1.f, 1.f, 0.2f, 1.f ), ICON_FA_TRIANGLE_EXCLAMATION );
+            TooltipIfHovered( "Context is limited to an inline function" );
         }
     }
 
@@ -5659,7 +5665,7 @@ void SourceView::Save( const Worker& worker, size_t start, size_t stop )
             f = fopen( fn, "wb" );
         }
         if( !f ) return;
-        char tmp[16];
+        char tmp[32];
         auto sym = worker.GetSymbolData( m_symAddr );
         assert( sym );
         const char* symName;

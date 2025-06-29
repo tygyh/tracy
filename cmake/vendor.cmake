@@ -101,50 +101,17 @@ else()
     target_link_libraries(TracyFreetype INTERFACE freetype)
 endif()
 
-# zstd
+# Zstd
 
-set(ZSTD_DIR "${ROOT_DIR}/zstd")
-
-set(ZSTD_SOURCES
-    decompress/zstd_ddict.c
-    decompress/zstd_decompress_block.c
-    decompress/huf_decompress.c
-    decompress/zstd_decompress.c
-    common/zstd_common.c
-    common/error_private.c
-    common/xxhash.c
-    common/entropy_common.c
-    common/debug.c
-    common/threading.c
-    common/pool.c
-    common/fse_decompress.c
-    compress/zstd_ldm.c
-    compress/zstd_compress_superblock.c
-    compress/zstd_opt.c
-    compress/zstd_compress_sequences.c
-    compress/fse_compress.c
-    compress/zstd_double_fast.c
-    compress/zstd_compress.c
-    compress/zstd_compress_literals.c
-    compress/hist.c
-    compress/zstdmt_compress.c
-    compress/zstd_lazy.c
-    compress/huf_compress.c
-    compress/zstd_fast.c
-    dictBuilder/zdict.c
-    dictBuilder/cover.c
-    dictBuilder/divsufsort.c
-    dictBuilder/fastcover.c
+CPMAddPackage(
+    NAME zstd
+    GITHUB_REPOSITORY facebook/zstd
+    GIT_TAG v1.5.7
+    OPTIONS
+        "ZSTD_BUILD_SHARED OFF"
+    EXCLUDE_FROM_ALL TRUE
+    SOURCE_SUBDIR build/cmake
 )
-
-list(TRANSFORM ZSTD_SOURCES PREPEND "${ZSTD_DIR}/")
-
-set_property(SOURCE ${ZSTD_DIR}/decompress/huf_decompress_amd64.S APPEND PROPERTY COMPILE_OPTIONS "-x" "assembler-with-cpp")
-
-add_library(TracyZstd STATIC EXCLUDE_FROM_ALL ${ZSTD_SOURCES})
-target_include_directories(TracyZstd PUBLIC ${ZSTD_DIR})
-target_compile_definitions(TracyZstd PRIVATE ZSTD_DISABLE_ASM)
-
 
 # Diff Template Library
 
@@ -154,7 +121,6 @@ add_library(TracyDtl INTERFACE)
 target_sources(TracyDtl INTERFACE ${DTL_HEADERS})
 target_include_directories(TracyDtl INTERFACE ${DTL_DIR})
 
-
 # Get Opt
 
 set(GETOPT_DIR "${ROOT_DIR}/getopt")
@@ -163,13 +129,12 @@ set(GETOPT_HEADERS ${GETOPT_DIR}/getopt.h)
 add_library(TracyGetOpt STATIC EXCLUDE_FROM_ALL ${GETOPT_SOURCES} ${GETOPT_HEADERS})
 target_include_directories(TracyGetOpt PUBLIC ${GETOPT_DIR})
 
-
 # ImGui
 
 CPMAddPackage(
     NAME ImGui
     GITHUB_REPOSITORY ocornut/imgui
-    GIT_TAG v1.91.5-docking
+    GIT_TAG v1.91.9b-docking
     DOWNLOAD_ONLY TRUE
     PATCHES
         "${CMAKE_CURRENT_LIST_DIR}/imgui-emscripten.patch"
@@ -199,50 +164,21 @@ endif()
 
 # NFD
 
-if (NOT NO_FILESELECTOR AND NOT EMSCRIPTEN)
-    set(NFD_DIR "${ROOT_DIR}/nfd")
-
-    if (WIN32)
-        set(NFD_SOURCES "${NFD_DIR}/nfd_win.cpp")
-    elseif (APPLE)
-        set(NFD_SOURCES "${NFD_DIR}/nfd_cocoa.m")
+if(NOT NO_FILESELECTOR AND NOT EMSCRIPTEN)
+    if(GTK_FILESELECTOR)
+        set(NFD_PORTAL OFF)
     else()
-        if (GTK_FILESELECTOR)
-            set(NFD_SOURCES "${NFD_DIR}/nfd_gtk.cpp")
-        else()
-            set(NFD_SOURCES "${NFD_DIR}/nfd_portal.cpp")
-        endif()
+        set(NFD_PORTAL ON)
     endif()
 
-    file(GLOB_RECURSE NFD_HEADERS CONFIGURE_DEPENDS RELATIVE ${NFD_DIR} "*.h")
-    add_library(TracyNfd STATIC EXCLUDE_FROM_ALL ${NFD_SOURCES} ${NFD_HEADERS})
-    target_include_directories(TracyNfd PUBLIC ${NFD_DIR})
-
-    if (APPLE)
-        find_library(APPKIT_LIBRARY AppKit)
-        find_library(UNIFORMTYPEIDENTIFIERS_LIBRARY UniformTypeIdentifiers)
-        target_link_libraries(TracyNfd PUBLIC ${APPKIT_LIBRARY} ${UNIFORMTYPEIDENTIFIERS_LIBRARY})
-    elseif (UNIX)
-        if (GTK_FILESELECTOR)
-            pkg_check_modules(GTK3 gtk+-3.0)
-            if (NOT GTK3_FOUND)
-                message(FATAL_ERROR "GTK3 not found. Please install it or set GTK_FILESELECTOR to OFF.")
-            endif()
-            add_library(TracyGtk3 INTERFACE)
-            target_include_directories(TracyGtk3 INTERFACE ${GTK3_INCLUDE_DIRS})
-            target_link_libraries(TracyGtk3 INTERFACE ${GTK3_LINK_LIBRARIES})
-            target_link_libraries(TracyNfd PUBLIC TracyGtk3)
-        else()
-            pkg_check_modules(DBUS dbus-1)
-            if (NOT DBUS_FOUND)
-                message(FATAL_ERROR "D-Bus not found. Please install it or set GTK_FILESELECTOR to ON.")
-            endif()
-            add_library(TracyDbus INTERFACE)
-            target_include_directories(TracyDbus INTERFACE ${DBUS_INCLUDE_DIRS})
-            target_link_libraries(TracyDbus INTERFACE ${DBUS_LINK_LIBRARIES})
-            target_link_libraries(TracyNfd PUBLIC TracyDbus)
-        endif()
-    endif()
+    CPMAddPackage(
+        NAME nfd
+        GITHUB_REPOSITORY btzy/nativefiledialog-extended
+        GIT_TAG v1.2.1
+        EXCLUDE_FROM_ALL TRUE
+        OPTIONS
+            "NFD_PORTAL ${NFD_PORTAL}"
+    )
 endif()
 
 # PPQSort
@@ -250,6 +186,8 @@ endif()
 CPMAddPackage(
     NAME PPQSort
     GITHUB_REPOSITORY GabTux/PPQSort
-    VERSION 1.0.3
+    VERSION 1.0.5
+    PATCHES
+        "${CMAKE_CURRENT_LIST_DIR}/ppqsort-nodebug.patch"
     EXCLUDE_FROM_ALL TRUE
 )

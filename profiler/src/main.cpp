@@ -101,7 +101,6 @@ static std::atomic<ViewShutdown> viewShutdown { ViewShutdown::False };
 static double animTime = 0;
 static float dpiScale = -1.f;
 static bool dpiScaleOverriddenFromEnv = false;
-static float userScale = 1.f;
 static float prevScale = 1.f;
 static int dpiChanged = 0;
 static bool dpiFirstSetup = true;
@@ -162,7 +161,7 @@ static void ScaleWindow(ImGuiWindow* window, float scale)
 
 static void SetupDPIScale()
 {
-    auto scale = dpiScale * userScale;
+    auto scale = dpiScale * s_config.userScale;
 
     if( !dpiFirstSetup && prevScale == scale ) return;
     dpiFirstSetup = false;
@@ -204,12 +203,6 @@ static void SetupDPIScale()
     for( auto& w : ctx->Windows ) ScaleWindow( w, ratio );
 }
 
-static void SetupScaleCallback( float scale )
-{
-    userScale = scale;
-    RunOnMainThread( []{ SetupDPIScale(); }, true );
-}
-
 static int IsBusy()
 {
     if( loadThread.joinable() ) return 2;
@@ -224,16 +217,22 @@ static void LoadConfig()
     if( !ini ) return;
 
     int v;
+    double v1;
     if( ini_sget( ini, "core", "threadedRendering", "%d", &v ) ) s_config.threadedRendering = v;
     if( ini_sget( ini, "core", "focusLostLimit", "%d", &v ) ) s_config.focusLostLimit = v;
     if( ini_sget( ini, "timeline", "targetFps", "%d", &v ) && v >= 1 && v < 10000 ) s_config.targetFps = v;
     if( ini_sget( ini, "timeline", "dynamicColors", "%d", &v ) ) s_config.dynamicColors = v;
     if( ini_sget( ini, "timeline", "forceColors", "%d", &v ) ) s_config.forceColors = v;
     if( ini_sget( ini, "timeline", "shortenName", "%d", &v ) ) s_config.shortenName = v;
+    if( ini_sget( ini, "timeline", "horizontalScrollMultiplier", "%lf", &v1 ) && v1 > 0.0 ) s_config.horizontalScrollMultiplier = v1;
+    if( ini_sget( ini, "timeline", "verticalScrollMultiplier", "%lf", &v1 ) && v1 > 0.0 ) s_config.verticalScrollMultiplier = v1;
     if( ini_sget( ini, "memory", "limit", "%d", &v ) ) s_config.memoryLimit = v;
     if( ini_sget( ini, "memory", "percent", "%d", &v ) && v >= 1 && v < 1000 ) s_config.memoryLimitPercent = v;
     if( ini_sget( ini, "achievements", "enabled", "%d", &v ) ) s_config.achievements = v;
     if( ini_sget( ini, "achievements", "asked", "%d", &v ) ) s_config.achievementsAsked = v;
+    if( ini_sget( ini, "ui", "saveUserScale", "%d", &v ) ) s_config.saveUserScale = v;
+    if( ini_sget( ini, "ui", "userScale", "%lf", &v1 ) && v1 > 0.0 && s_config.saveUserScale ) s_config.userScale = v1;
+    
 
     ini_free( ini );
 }
@@ -253,6 +252,8 @@ static bool SaveConfig()
     fprintf( f, "dynamicColors = %i\n", s_config.dynamicColors );
     fprintf( f, "forceColors = %i\n", (int)s_config.forceColors );
     fprintf( f, "shortenName = %i\n", s_config.shortenName );
+    fprintf( f, "horizontalScrollMultiplier = %lf\n", s_config.horizontalScrollMultiplier );
+    fprintf( f, "verticalScrollMultiplier = %lf\n", s_config.verticalScrollMultiplier );
 
     fprintf( f, "\n[memory]\n" );
     fprintf( f, "limit = %i\n", (int)s_config.memoryLimit );
@@ -262,8 +263,19 @@ static bool SaveConfig()
     fprintf( f, "enabled = %i\n", (int)s_config.achievements );
     fprintf( f, "asked = %i\n", (int)s_config.achievementsAsked );
 
+    fprintf( f, "\n[ui]\n" );
+    fprintf( f, "saveUserScale = %i\n", (int)s_config.saveUserScale );
+    fprintf( f, "userScale = %lf\n", s_config.userScale );
+
     fclose( f );
     return true;
+}
+
+static void SetupScaleCallback( float scale )
+{
+    s_config.userScale = scale;
+    if ( s_config.saveUserScale ) SaveConfig();
+    RunOnMainThread( []{ SetupDPIScale(); }, true );
 }
 
 static void ScaleChanged( float scale )
@@ -692,7 +704,7 @@ static void DrawContents()
 
         auto& style = ImGui::GetStyle();
         style.Colors[ImGuiCol_WindowBg] = ImVec4( 0.129f, 0.137f, 0.11f, 1.f );
-        ImGui::Begin( "Get started", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse );
+        ImGui::Begin( "Get started", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings );
         char buf[128];
         sprintf( buf, "Tracy Profiler %i.%i.%i", tracy::Version::Major, tracy::Version::Minor, tracy::Version::Patch );
         ImGui::PushFont( s_bigFont );
@@ -794,6 +806,19 @@ static void DrawContents()
                 ImGui::PopStyleVar();
                 ImGui::Unindent();
 
+                ImGui::Spacing();
+                ImGui::TextUnformatted( "Scroll Multipliers" );
+                ImGui::SameLine();
+                tracy::DrawHelpMarker( "The multipliers to the amount to scroll by horizontally and vertically. This is used in the timeline and setting this value can help compensate for scroll wheel sensitivity." );
+                ImGui::SameLine();
+                double tmpScroll = s_config.horizontalScrollMultiplier;
+                ImGui::SetNextItemWidth( 45 * dpiScale );
+                if( ImGui::InputDouble( "##horizontalscrollmultiplier", &tmpScroll ) ) { s_config.horizontalScrollMultiplier = std::max( tmpScroll, 0.01 ); SaveConfig(); }
+                tmpScroll = s_config.verticalScrollMultiplier;
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth( 45 * dpiScale );
+                if( ImGui::InputDouble( "##verticalscrollmultiplier", &tmpScroll ) ) { s_config.verticalScrollMultiplier = std::max( tmpScroll, 0.01 ); SaveConfig(); }
+
                 if( s_totalMem == 0 )
                 {
                     ImGui::BeginDisabled();
@@ -821,6 +846,7 @@ static void DrawContents()
 
                 ImGui::Spacing();
                 if( ImGui::Checkbox( "Enable achievements", &s_config.achievements ) ) SaveConfig();
+                if( ImGui::Checkbox( "Save UI scale", &s_config.saveUserScale) ) SaveConfig();
 
                 ImGui::PopStyleVar();
                 ImGui::TreePop();
@@ -1249,7 +1275,7 @@ static void DrawContents()
     {
         ImGui::OpenPopup( "Loading trace..." );
     }
-    if( ImGui::BeginPopupModal( "Loading trace...", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
+    if( ImGui::BeginPopupModal( "Loading trace...", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings) )
     {
         ImGui::PushFont( s_bigFont );
         tracy::TextCentered( ICON_FA_HOURGLASS_HALF );

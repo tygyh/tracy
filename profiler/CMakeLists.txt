@@ -106,6 +106,7 @@ set(LIBS "")
 
 if(USE_WAYLAND)
     pkg_check_modules(WAYLAND REQUIRED egl wayland-egl wayland-cursor xkbcommon)
+    set(INCLUDES "${INCLUDES};${WAYLAND_INCLUDE_DIRS}")
     set(LIBS "${LIBS};${WAYLAND_LIBRARIES}")
     set(PROFILER_FILES ${PROFILER_FILES}
         src/BackendWayland.cpp
@@ -148,6 +149,10 @@ if(USE_WAYLAND)
         PROTOCOL ${wayland-protocols_SOURCE_DIR}/unstable/tablet/tablet-unstable-v2.xml
         BASENAME tablet
     )
+    ecm_add_wayland_client_protocol(PROFILER_FILES
+        PROTOCOL ${wayland-protocols_SOURCE_DIR}/staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml
+        BASENAME xdg-toplevel-icon
+    )
 elseif(EMSCRIPTEN)
     set(PROFILER_FILES ${PROFILER_FILES}
         src/BackendEmscripten.cpp
@@ -179,21 +184,39 @@ else()
     add_executable(${PROJECT_NAME} ${PROFILER_FILES} ${COMMON_FILES} ${SERVER_FILES})
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE TracyServer TracyImGui)
+find_package(Threads REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE TracyServer TracyImGui Threads::Threads)
 
 if(NOT DEFINED GIT_REV)
     set(GIT_REV "HEAD")
 endif()
 
-add_custom_target(git-ref
-    COMMAND python3 ${CMAKE_CURRENT_LIST_DIR}/../extra/git-ref.py ${GIT_REV}
-    BYPRODUCTS GitRef.hpp
-)
-add_dependencies(${PROJECT_NAME} git-ref)
+find_package(Git)
+if(Git_FOUND)
+    add_custom_target(git-ref
+        COMMAND ${CMAKE_COMMAND} -E echo "#pragma once" > GitRef.hpp.tmp
+        COMMAND ${GIT_EXECUTABLE} -C ${CMAKE_CURRENT_SOURCE_DIR} log -1 "--format=namespace tracy { static inline const char* GitRef = %x22%h%x22; }" ${GIT_REV} >> GitRef.hpp.tmp || echo "namespace tracy { static inline const char* GitRef = \"unknown\"; }" >> GitRef.hpp.tmp
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different GitRef.hpp.tmp GitRef.hpp
+        BYPRODUCTS GitRef.hpp GitRef.hpp.tmp
+        VERBATIM
+    )
+    add_dependencies(${PROJECT_NAME} git-ref)
+else()
+    message(WARNING "git not found, using 'unknown' as git ref.")
+    add_custom_command(
+        OUTPUT GitRef.hpp
+        COMMAND ${CMAKE_COMMAND} -E echo "#pragma once" > GitRef.hpp
+        COMMAND ${CMAKE_COMMAND} -E echo "namespace tracy { static inline const char* GitRef = \"unknown\"; }" >> GitRef.hpp
+        VERBATIM
+    )
+    target_sources(${PROJECT_NAME} PUBLIC GitRef.hpp)
+endif()
 
 if(NOT EMSCRIPTEN)
-    target_link_libraries(${PROJECT_NAME} PRIVATE TracyNfd)
-    if (NOT USE_WAYLAND)
+    if(NOT NO_FILESELECTOR)
+        target_link_libraries(${PROJECT_NAME} PRIVATE nfd::nfd)
+    endif()
+    if(NOT USE_WAYLAND)
         target_link_libraries(${PROJECT_NAME} PRIVATE TracyGlfw3)
     endif()
 endif()
