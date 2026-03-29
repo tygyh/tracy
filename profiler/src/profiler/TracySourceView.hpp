@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "tracy_robin_hood.h"
@@ -111,8 +112,6 @@ private:
         uint16_t regData[20];
     };
 
-    enum { AsmLineSize = sizeof( AsmLine ) };
-
     struct JumpData
     {
         uint64_t min;
@@ -164,7 +163,6 @@ private:
 public:
     SourceView();
 
-    void UpdateFont( ImFont* fixed, ImFont* small, ImFont* big ) { m_font = fixed; m_smallFont = small; m_bigFont = big; }
     void SetCpuId( uint32_t cpuid );
 
     void OpenSource( const char* fileName, int line, const View& view, const Worker& worker );
@@ -183,7 +181,7 @@ private:
     void RenderSimpleSourceView();
     void RenderSymbolView( Worker& worker, View& view );
 
-    void RenderSymbolSourceView( const AddrStatData& as, Worker& worker, const View& view, bool hasInlines );
+    void RenderSymbolSourceView( const AddrStatData& as, Worker& worker, View& view, bool hasInlines );
     uint64_t RenderSymbolAsmView( const AddrStatData& as, Worker& worker, View& view );
 
     void RenderLine( const Tokenizer::Line& line, int lineNum, const AddrStat& ipcnt, const AddrStatData& as, Worker* worker, const View* view );
@@ -214,6 +212,9 @@ private:
     const std::vector<uint64_t>* GetAddressesForLocation( uint32_t fileStringIdx, uint32_t line, const Worker& worker );
 
     tracy_force_inline float CalcJumpSeparation( float scale );
+    std::tuple<size_t, size_t> GetJumpRange( const JumpData& jump );
+
+    void AttachRangeToLlm( size_t start, size_t stop, Worker& worker, View& view, const AddrStatData& as );
 
 #ifndef TRACY_NO_FILESELECTOR
     void Save( const Worker& worker, size_t start = 0, size_t stop = std::numeric_limits<size_t>::max() );
@@ -222,9 +223,6 @@ private:
     tracy_force_inline void SetFont();
     tracy_force_inline void UnsetFont();
 
-    ImFont* m_font;
-    ImFont* m_smallFont;
-    ImFont* m_bigFont;
     uint64_t m_symAddr;
     uint64_t m_baseAddr;
     uint64_t m_targetAddr;

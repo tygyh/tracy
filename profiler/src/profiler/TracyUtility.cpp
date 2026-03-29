@@ -187,4 +187,43 @@ const char* FormatPlotValue( double val, PlotValueFormatting format )
     return buf;
 }
 
+std::vector<std::string> SplitLines( const char* data, size_t sz )
+{
+    std::vector<std::string> ret;
+    auto txt = data;
+    for(;;)
+    {
+        auto end = txt;
+        while( *end != '\n' && *end != '\r' && end - data < sz ) end++;
+        ret.emplace_back( txt, end );
+        if( end - data == sz ) break;
+        if( *end == '\n' )
+        {
+            end++;
+            if( end - data < sz && *end == '\r' ) end++;
+        }
+        else if( *end == '\r' )
+        {
+            end++;
+            if( end - data < sz && *end == '\n' ) end++;
+        }
+        if( end - data == sz ) break;
+        txt = end;
+    }
+    return ret;
+}
+
+bool IsFrameExternal( const char* filename, const char* image )
+{
+    if( strncmp( filename, "/usr/", 5 ) == 0 || strncmp( filename, "/lib/", 5 ) == 0 || strcmp( filename, "[unknown]" ) == 0 || strcmp( filename, "<kernel>" ) == 0 ) return true;
+    if( strncmp( filename, "C:\\Program Files", 16 ) == 0 || strncmp( filename, "d:\\a01\\_work\\", 13 ) == 0 ) return true;
+    while( *filename )
+    {
+        if( filename[0] == '/' && filename[1] == '.' && filename[2] != '.' ) return true;
+        filename++;
+    }
+    if( !image ) return false;
+    return strncmp( image, "/usr/", 5 ) == 0 || strncmp( image, "/lib/", 5 ) == 0 || strncmp( image, "/lib64/", 7 ) == 0 || strcmp( image, "<kernel>" ) == 0;
+}
+
 }

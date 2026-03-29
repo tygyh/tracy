@@ -21,6 +21,17 @@ add_executable(tracy-test test.cpp)
 target_link_options(tracy-test PRIVATE -rdynamic)
 target_link_libraries(tracy-test TracyClient)
 
+# Lua support (optional)
+find_package(Lua)
+if(LUA_FOUND)
+  message(STATUS "Lua found, enabling Lua support in tracy-test")
+  target_compile_definitions(tracy-test PRIVATE TRACY_HAS_LUA)
+  target_include_directories(tracy-test PRIVATE ${LUA_INCLUDE_DIR})
+  target_link_libraries(tracy-test ${LUA_LIBRARIES})
+else()
+  message(STATUS "Lua not found, building tracy-test without Lua support")
+endif()
+
 # OS-specific options
 
 if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
@@ -29,3 +40,5 @@ endif()
 
 # copy image file in build folder
 configure_file(${CMAKE_CURRENT_LIST_DIR}/image.jpg image.jpg COPYONLY)
+
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT tracy-test)

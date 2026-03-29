@@ -3,6 +3,7 @@
 #include "TracyPrint.hpp"
 #include "TracyTimelineItem.hpp"
 #include "TracyView.hpp"
+#include "../Fonts.hpp"
 
 namespace tracy
 {
@@ -226,13 +227,8 @@ void View::DrawNotificationArea()
     if( !m_worker.IsBackgroundDone() )
     {
         ImGui::SameLine();
-        TextDisabledUnformatted( ICON_FA_LIST_CHECK );
-        ImGui::SameLine();
-        const auto pos = ImGui::GetCursorPos();
-        ImGui::TextUnformatted( "  " );
-        ImGui::GetWindowDrawList()->AddCircleFilled( pos + ImVec2( 0, ty * 0.675f ), ty * ( 0.2f + ( sin( s_time * 8 ) + 1 ) * 0.125f ), 0xFF888888, 10 );
+        DrawWaitingDots( s_time, false );
         auto rmin = ImGui::GetItemRectMin();
-        rmin.x -= ty * 0.5f;
         const auto rmax = ImGui::GetItemRectMax();
         if( ImGui::IsMouseHoveringRect( rmin, rmax ) )
         {
@@ -244,7 +240,7 @@ void View::DrawNotificationArea()
     if( m_saveThreadState.load( std::memory_order_relaxed ) == SaveThreadState::Saving )
     {
         ImGui::SameLine();
-        ImGui::TextUnformatted( ICON_FA_FLOPPY_DISK " Saving trace..." );
+        ImGui::TextUnformatted( ICON_FA_FLOPPY_DISK " Saving trace…" );
         m_notificationTime = 0;
     }
     else if( m_notificationTime > 0 )
@@ -254,7 +250,7 @@ void View::DrawNotificationArea()
         TextDisabledUnformatted( m_notificationText.c_str() );
     }
 
-    ImGui::PushFont( m_smallFont );
+    ImGui::PushFont( g_fonts.normal, FontSmall );
     const auto wpos = ImGui::GetWindowPos();
     const auto w = ImGui::GetContentRegionAvail().x;
     const auto fps = RealToString( int( io.Framerate + 0.5f ) );
